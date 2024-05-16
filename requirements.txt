@@ -1,0 +1,10 @@
+conda create -n truongdepzai python=3.10
+conda activate truongdepzai
+conda install -c conda-forge cudatoolkit=11.8 cudnn=8.9.2.26
+conda install conda-forge::opencv
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install ultralytics
+pip install tensorrt
+pip install tensorrt_dispatch
+pip install tensorrt_lean
+pip install onnx onnxsim onnxruntime-gpu

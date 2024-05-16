@@ -1,0 +1,11 @@
+# Biến cài đặt môi trường
+requirements: ./requirements.txt
+
+#weight .pt để convert sang tensort
+weight_pt: ./best.pt
+
+#weight để run inferences
+weight_engine: ./best.engine
+
+
+
