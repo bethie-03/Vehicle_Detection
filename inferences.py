@@ -1,18 +1,19 @@
 import ultralytics
 import cv2
 import time
-from load_config import get_config_yaml
+from setup.load_config import get_config_yaml
 from ultralytics import RTDETR
 ultralytics.checks()
 import argparse
 import os
 
-
-#setup path 
+# get default source
 
 def get_args():
     parser = argparse.ArgumentParser(description="Train faster-rcnn")
-    parser.add_argument("--source", "-src", type=str, default=None, help="path to data")
+    parser.add_argument("--source", "-src", type=str, default=source, help="path to data")
+    parser.add_argument("--model", "-w", type=str, default=weight_path, help="")
+
 
     args = parser.parse_args()
     return args
@@ -33,7 +34,7 @@ def inferences(args):
             data_type = "video"
         
     # Loop through the video frames
-        model = RTDETR(weight_path)
+        model = RTDETR(args.model)
         begin = time.time()
         while cap.isOpened():
             # Read a frame from the video
@@ -70,6 +71,7 @@ def inferences(args):
 
 if __name__ =="__main__":
     weight_path = get_config_yaml('weight_engine')
+    source = get_config_yaml('source')
     args = get_args()
     inferences(args)
 

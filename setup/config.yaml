@@ -1,0 +1,17 @@
+# Biến cài đặt môi trường
+requirements: ./requirements.txt
+
+#weight .pt để convert sang tensort
+weight_pt: ./best.pt
+
+#weight để run inferences
+weight_engine: /mnt/d/VietNguyenAI/King_model/best.engine
+source: /mnt/d/VietNguyenAI/King_model/video1.mp4
+
+# Những class sử dụng
+classnames: ['bus', 'container truck', 'fire truck', 'bicycle', 'car', 'motorbike', 'truck', 'van']
+
+# Khoảng range lấy để sử dụng
+warning_range: /mnt/d/VietNguyenAI/Vehicle_Detection/warning_range/all_polygons.txt
+
+

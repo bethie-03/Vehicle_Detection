@@ -8,3 +8,4 @@ pip install tensorrt
 pip install tensorrt_dispatch
 pip install tensorrt_lean
 pip install onnx onnxsim onnxruntime-gpu
+pip install shapely
