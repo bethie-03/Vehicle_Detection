@@ -2,25 +2,28 @@ import cv2
 from ultralytics import YOLO
 import cv2
 import numpy as np
+from scipy.spatial import distance
 
 class RoadAnalysis:
-    def __init__(self, model_path, image_path):
+    def __init__(self, model_path, image_path, road_length: float):
         self.model = YOLO(model_path)
         self.image = cv2.imread(image_path)
         self.mask = None
         self.mask_image = None
         self.drawing = False
-        self.total_bounding_box_pixels = 0
+        self.total_bounding_box_area = 0
         self.start_x = -1
         self.start_y = -1
+        self.road_length = road_length
+        self.bboxes = []
         self.points=[] #top_left, top_right, bottom_right, bottom_left
+        self.points_array_list = None
     
     def convert_array_list(self):
-        points_array_list = np.array(self.points, np.int32)
-        points_array_list = points_array_list.reshape((-1, 1, 2))
-        return points_array_list
+        self.points_array_list = np.array(self.points, np.int32)
+        self.points_array_list = self.points_array_list.reshape((-1, 1, 2))
         
-    def draw(self, event, x, y, flags, param):
+    def draw_call_back(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             self.drawing = True
             self.start_x, self.start_y = x, y
@@ -34,9 +37,9 @@ class RoadAnalysis:
             else:
                 self.points.append([self.start_x, self.start_y])
                 if len(self.points) >= 4:
-                    points_array_list = self.convert_array_list()
+                    self.convert_array_list()
                     cv2.circle(self.image, (self.start_x, self.start_y), 5, (0, 0, 255), -1)
-                    cv2.polylines(self.image, [points_array_list], isClosed=False, color=(0, 0, 255), thickness=2)
+                    cv2.polylines(self.image, [self.points_array_list], isClosed=False, color=(0, 0, 255), thickness=2)
                 elif len(self.points) > 1 and len(self.points) < 4:
                     points_copy = self.points[-2:]
                     cv2.circle(self.image, (self.start_x, self.start_y), 5, (0, 0, 255), -1)
@@ -45,63 +48,138 @@ class RoadAnalysis:
                     cv2.circle(self.image, (self.start_x, self.start_y), 5, (0, 0, 255), -1) 
                 cv2.imshow("Detection result", self.image)
     
+    def empty_call_back(self, event, x, y, flags, param):
+        pass
+    
     def create_mask_image(self) -> int:
         height, width, _ = self.image.shape
-        points_array_list = self.convert_array_list()
+        self.convert_array_list()
         self.mask = np.zeros((height, width), dtype=np.uint8)
-        cv2.fillPoly(self.mask, [points_array_list], color=255)
+        cv2.fillPoly(self.mask, [self.points_array_list], color=255)
         self.mask_image = cv2.bitwise_and(self.image,self.image, mask=self.mask)
     
     def calculate_total_zone_pixels(self) -> int:
-        height, width, _ = self.image.shape
-        total_zone_pixels = 0
-        for y in range(height):
-            for x in range(width):
-                pixel_value = self.mask[y,x]
-                if pixel_value==255:
-                    total_zone_pixels+=1
-        return total_zone_pixels
+        total_zone_area = cv2.countNonZero(self.mask)
+        return total_zone_area
     
     def count_black_pixels_in_bounding_boxes(self, x1, y1, x2, y2):
         black_pixel = 0
+        bounding_box_area = (x2 - x1 + 1) * (y2 - y1 + 1)
+        
         for x in range(x1,x2):
             for y in range(y1, y2):
-                self.total_bounding_box_pixels += 1
                 pixel_value = self.mask_image[y,x]
                 if np.all(pixel_value==0):
                     black_pixel+=1 
-        self.total_bounding_box_pixels -= black_pixel
+                    
+        self.total_bounding_box_area += bounding_box_area - black_pixel
         
+    def calculate_intersection_area(self, box1, box2):
+        x1_1, y1_1, x2_1, y2_1 = box1
+        x1_2, y1_2, x2_2, y2_2 = box2
+        
+        x1_i = max(x1_1, x1_2)
+        y1_i = max(y1_1, y1_2)
+        x2_i = min(x2_1, x2_2)
+        y2_i = min(y2_1, y2_2)
+        
+        intersection_area = max(0, x2_i - x1_i + 1) * max(0, y2_i - y1_i + 1)
+        return intersection_area
+    
+    def count_total_overlap_area(self):
+        total_overlap_area = 0
+        bboxes = self.bboxes.copy()
+        while len(bboxes) > 1:
+            for i in range(1, len(bboxes)):
+                intersection_area = self.calculate_intersection_area(bboxes[0][:4], bboxes[i][:4])
+                total_overlap_area += intersection_area
+            bboxes.pop(0)
+            
+        self.total_bounding_box_area -= total_overlap_area
+        
+    def find_indices_of_min_value(self, distances: list):
+        min_value = min(distances)
+        return [index for index, value in enumerate(distances) if value == min_value]
+    
+    def find_indices_of_max_value(self, distances: list):
+        max_value = max(distances)
+        return [index for index, value in enumerate(distances) if value == max_value]
+
+    def find_furthest_vehicle_position(self):
+        top_left, top_right, bottom_right, bottom_left = self.points
+        road_height = max(bottom_right[1], bottom_left[1]) - max(top_left[1], top_right[1]) + 1
+        
+        nearest_to_the_top_distances = []
+        furthest_to_the_bottom_distances = []
+        
+        for box in self.bboxes:
+            distance = max(0, box[1] - max(top_left[1], top_right[1]) + 1)
+            nearest_to_the_top_distances.append(distance)
+            
+        indices_of_min_value = self.find_indices_of_min_value(nearest_to_the_top_distances)
+                
+        if len(indices_of_min_value) > 1:
+            for index in indices_of_min_value:
+                distance = max(bottom_right[1], bottom_left[1]) - self.bboxes[index][3] + 1
+                furthest_to_the_bottom_distances.append(distance)
+            indices_of_max_value = self.find_indices_of_max_value(furthest_to_the_bottom_distances)
+            return furthest_to_the_bottom_distances[indices_of_max_value[0]], indices_of_min_value[indices_of_max_value[0]]
+        else:
+            furthest_to_the_bottom_distance = max(bottom_right[1], bottom_left[1]) - self.bboxes[indices_of_min_value[0]][3] + 1
+            return road_height, furthest_to_the_bottom_distance , indices_of_min_value[0]
+    
+    def calculate_time_for_furthest_vehicle_to_light(self):
+        motorcycle_speed = 40
+        large_vehicle_speed = 30
+        road_height, furthest_vehicle_to_light_height , index = self.find_furthest_vehicle_position()
+        furthest_vehicle_to_light_distance = (furthest_vehicle_to_light_height/road_height) * self.road_length
+        if self.bboxes[index][4] == 'xe mays':
+            time = furthest_vehicle_to_light_distance/motorcycle_speed
+        else:
+            time = furthest_vehicle_to_light_distance/large_vehicle_speed
+        cv2.rectangle(self.image, (self.bboxes[index][0], self.bboxes[index][1]), (self.bboxes[index][2], self.bboxes[index][3]), (0,0,255), 2)
+        cv2.putText(self.image, f'Time: {int(time*3600)}s', (10,100), cv2.FONT_HERSHEY_DUPLEX, 1, color=(255,255,255), thickness=3)
+     
     def calculate_ratio(self):
+        self.count_total_overlap_area() 
+        total_zone_area = self.calculate_total_zone_pixels()
+        ratio = self.total_bounding_box_area/total_zone_area
+        return ratio
+    
+    def road_analyse(self):
         cv2.imshow("Detection result", self.image)
-        cv2.setMouseCallback("Detection result", self.draw)
+        cv2.setMouseCallback("Detection result", self.draw_call_back)
         
         if cv2.waitKey(0) == ord('x') or cv2.waitKey(0) == ord('X'):  
-            points_array_list = self.convert_array_list() 
-            cv2.polylines(self.image, [points_array_list], isClosed=True, color=(0, 0, 255), thickness=2)
+            cv2.setMouseCallback("Detection result", self.empty_call_back)
+            self.convert_array_list() 
+            cv2.polylines(self.image, [self.points_array_list], isClosed=True, color=(0, 0, 255), thickness=2)
             cv2.imshow('Detection result', self.image) 
             
             self.create_mask_image()
             results = self.model(self.mask_image)[0]
             
-            if results is not None:
+            if len(results.boxes.data) > 0:
                 for result in results.boxes.data:
                     x1, y1, x2, y2 = list(map(int, result[:4])) 
                     class_id = int(result[5])
+                    self.bboxes.append([x1,y1,x2,y2, class_id])
                     self.count_black_pixels_in_bounding_boxes(x1, y1, x2, y2)
+                    
                     cv2.putText(self.image, f'{self.model.names[class_id]}', (x1,y1), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0), 2)
                     cv2.rectangle(self.image, (x1,y1), (x2,y2), (0,255,0), 2)
-                        
-                total_zone_pixels = self.calculate_total_zone_pixels()
-                ratio = self.total_bounding_box_pixels/total_zone_pixels
+                    
+                ratio = self.calculate_ratio()
+                self.calculate_time_for_furthest_vehicle_to_light()
+                cv2.putText(self.image, f'Ratio: {ratio}', (10,50), cv2.FONT_HERSHEY_DUPLEX, 1, color=(255,255,255), thickness=3)\
+                    
             else:
-                ratio = 0
-                
-            print(self.total_bounding_box_pixels, total_zone_pixels)
-            cv2.putText(self.image, f'Ratio: {ratio}', (100,100), cv2.FONT_HERSHEY_DUPLEX, 1, color=(0,0,0), thickness=3)               
+                cv2.putText(self.image, f'NO DETECTION', (10,50), cv2.FONT_HERSHEY_DUPLEX, 1, color=(255,255,255), thickness=3)               
             cv2.imshow('Detection result', self.image) 
+            
         if cv2.waitKey(0) == ord('b') or cv2.waitKey(0) == ord('B'): 
             cv2.destroyAllWindows()
+            
                 
-calculate = RoadAnalysis(r'C:\Users\phuon\Documents\FPT\CN7\DAT301m\Vehicle Detection\weights\epoch40.pt', r"C:\Users\phuon\Documents\FPT\CN7\DAT301m\Vehicle Detection\Dataset\train\images\000000393_jpg.rf.300e40d07c0e36ed59d62df94d22d051.jpg")
-calculate.calculate_ratio()
+calculate = RoadAnalysis(r'C:\Users\phuon\Documents\FPT\CN7\DAT301m\Vehicle Detection\weights\epoch40.pt', r"C:\Users\phuon\Documents\FPT\CN7\DAT301m\Vehicle Detection\Dataset\train\images\000000393_jpg.rf.300e40d07c0e36ed59d62df94d22d051.jpg", 0.05)
+calculate.road_analyse()
