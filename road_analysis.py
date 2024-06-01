@@ -1,8 +1,7 @@
 import cv2
 from ultralytics import YOLO
-import cv2
 import numpy as np
-from scipy.spatial import distance
+from configs import *
 
 class RoadAnalysis:
     def __init__(self, model_path, image_path, road_length: float):
@@ -176,10 +175,9 @@ class RoadAnalysis:
             else:
                 cv2.putText(self.image, f'NO DETECTION', (10,50), cv2.FONT_HERSHEY_DUPLEX, 1, color=(255,255,255), thickness=3)               
             cv2.imshow('Detection result', self.image) 
-            
-        if cv2.waitKey(0) == ord('b') or cv2.waitKey(0) == ord('B'): 
+            cv2.waitKey(0)
             cv2.destroyAllWindows()
-            
-                
-calculate = RoadAnalysis(r'C:\Users\phuon\Documents\FPT\CN7\DAT301m\Vehicle Detection\weights\epoch40.pt', r"C:\Users\phuon\Documents\FPT\CN7\DAT301m\Vehicle Detection\Dataset\train\images\000000393_jpg.rf.300e40d07c0e36ed59d62df94d22d051.jpg", 0.05)
-calculate.road_analyse()
+
+if __name__ == '__main__':       
+    calculate = RoadAnalysis(MODEL_PATH, IMAGE_PATH, ROAD_LENGTH)
+    calculate.road_analyse()
