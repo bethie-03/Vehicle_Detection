@@ -17,7 +17,15 @@ class RoadAnalysis:
         self.bboxes = []
         self.points=[] #top_left, top_right, bottom_right, bottom_left
         self.points_array_list = None
-    
+
+        self.motorcycle_speed_min = 10 #km/h
+        self.motorcycle_speed_average = 30 
+        self.motorcycle_speed_max = 60 
+
+        self.car_speed_min = 7
+        self.car_speed_average = 25
+        self.car_speed_max = 40
+        
     def convert_array_list(self):
         self.points_array_list = np.array(self.points, np.int32)
         self.points_array_list = self.points_array_list.reshape((-1, 1, 2))
@@ -95,6 +103,12 @@ class RoadAnalysis:
             bboxes.pop(0)
             
         self.total_bounding_box_area -= total_overlap_area
+
+    def calculate_ratio(self):
+        self.count_total_overlap_area() 
+        total_zone_area = self.calculate_total_zone_pixels()
+        ratio = self.total_bounding_box_area/total_zone_area
+        return ratio
         
     def find_indices_of_min_value(self, distances: list):
         min_value = min(distances)
@@ -127,23 +141,41 @@ class RoadAnalysis:
             furthest_to_the_bottom_distance = max(bottom_right[1], bottom_left[1]) - self.bboxes[indices_of_min_value[0]][3] + 1
             return road_height, furthest_to_the_bottom_distance , indices_of_min_value[0]
     
-    def calculate_time_for_furthest_vehicle_to_light(self):
-        motorcycle_speed = 40
-        large_vehicle_speed = 30
-        road_height, furthest_vehicle_to_light_height , index = self.find_furthest_vehicle_position()
-        furthest_vehicle_to_light_distance = (furthest_vehicle_to_light_height/road_height) * self.road_length
-        if self.bboxes[index][4] == 'xe mays':
-            time = furthest_vehicle_to_light_distance/motorcycle_speed
+    def calculate_actual_speed(self, v_min, v_average, v_max, ratio):
+        ratio_deviation = 0.5 - ratio
+        print(ratio_deviation)
+        if ratio_deviation < 0:
+            ratio_deviation_percentage = (abs(ratio_deviation) / (0.8 - 0.5)) 
+            actual_speed = v_average + ((v_average - v_min) * ratio_deviation_percentage)
+        elif ratio_deviation > 0:
+            ratio_deviation_percentage = (abs(ratio_deviation) / 0.5) 
+            print(ratio_deviation_percentage)
+            actual_speed = v_average + ((v_max - v_average) * ratio_deviation_percentage)
+            print(v_max)
+            print(v_average)
+            print(((v_max - v_average) * ratio_deviation_percentage))
         else:
-            time = furthest_vehicle_to_light_distance/large_vehicle_speed
+            return v_average
+        print(actual_speed)
+        return actual_speed
+
+    def calculate_time_for_furthest_vehicle_to_light(self, ratio):
+        road_height, furthest_vehicle_to_light_height , index = self.find_furthest_vehicle_position()
+        furthest_vehicle_to_light_distance = (furthest_vehicle_to_light_height / road_height) * self.road_length
+        if self.bboxes[index][4] == 5:
+            vehicle_speed = self.calculate_actual_speed(self.motorcycle_speed_min, 
+                                                        self.motorcycle_speed_average, 
+                                                        self.motorcycle_speed_max, 
+                                                        ratio)
+        else:
+            vehicle_speed = self.calculate_actual_speed(self.car_speed_min, 
+                                                        self.car_speed_average, 
+                                                        self.car_speed_max, 
+                                                        ratio)
+
+        time = furthest_vehicle_to_light_distance/vehicle_speed
         cv2.rectangle(self.image, (self.bboxes[index][0], self.bboxes[index][1]), (self.bboxes[index][2], self.bboxes[index][3]), (0,0,255), 2)
         cv2.putText(self.image, f'Time: {int(time*3600)}s', (10,100), cv2.FONT_HERSHEY_DUPLEX, 1, color=(255,255,255), thickness=3)
-     
-    def calculate_ratio(self):
-        self.count_total_overlap_area() 
-        total_zone_area = self.calculate_total_zone_pixels()
-        ratio = self.total_bounding_box_area/total_zone_area
-        return ratio
     
     def road_analyse(self):
         cv2.imshow("Detection result", self.image)
@@ -169,7 +201,8 @@ class RoadAnalysis:
                     cv2.rectangle(self.image, (x1,y1), (x2,y2), (0,255,0), 2)
                     
                 ratio = self.calculate_ratio()
-                self.calculate_time_for_furthest_vehicle_to_light()
+                if ratio <= 0.8:
+                    self.calculate_time_for_furthest_vehicle_to_light(ratio)
                 cv2.putText(self.image, f'Ratio: {ratio}', (10,50), cv2.FONT_HERSHEY_DUPLEX, 1, color=(255,255,255), thickness=3)\
                     
             else:
