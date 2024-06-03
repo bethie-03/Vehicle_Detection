@@ -141,40 +141,65 @@ class RoadAnalysis:
             furthest_to_the_bottom_distance = max(bottom_right[1], bottom_left[1]) - self.bboxes[indices_of_min_value[0]][3] + 1
             return road_height, furthest_to_the_bottom_distance , indices_of_min_value[0]
     
+    def create_front_vehicle_zone(self):
+        _, _, bottom_right, bottom_left = self.points
+        _, _ , furthest_index = self.find_furthest_vehicle_position()
+        x1, y1, x2, _, _ = self.bboxes[furthest_index]
+        front_zone_box = (x1 - (x2 - x1), y1, x2 + (x2 - x1), max(bottom_right[1], bottom_left[1]))
+        front_zone_height = front_zone_box[3] - front_zone_box[1]
+        cv2.rectangle(self.image, (front_zone_box[0], front_zone_box[1]), (front_zone_box[2], front_zone_box[3]), (255,0,0), 2)
+        return front_zone_box, front_zone_height
+    
+    def check_front_vehicle_appearance(self, furthest_vehicle_y2):
+        front_zone_box, front_zone_height = self.create_front_vehicle_zone()
+        for box in self.bboxes:
+            intersection_area = self.calculate_intersection_area(box[:4], front_zone_box)
+            if intersection_area != 0:
+                distance_between_vehicles = box[3] - furthest_vehicle_y2
+                ratio_of_distance_to_road_height = distance_between_vehicles / front_zone_height
+                print(ratio_of_distance_to_road_height)
+                if ratio_of_distance_to_road_height >= 0.5:
+                    continue
+                else:
+                    cv2.rectangle(self.image, (box[0], box[1]), (box[2], box[3]), (255,0,0), 2)
+                    return True
+        return False 
+
     def calculate_actual_speed(self, v_min, v_average, v_max, ratio):
         ratio_deviation = 0.5 - ratio
-        print(ratio_deviation)
         if ratio_deviation < 0:
             ratio_deviation_percentage = (abs(ratio_deviation) / (0.8 - 0.5)) 
-            actual_speed = v_average + ((v_average - v_min) * ratio_deviation_percentage)
+            actual_speed = v_average - ((v_average - v_min) * ratio_deviation_percentage)
         elif ratio_deviation > 0:
             ratio_deviation_percentage = (abs(ratio_deviation) / 0.5) 
-            print(ratio_deviation_percentage)
             actual_speed = v_average + ((v_max - v_average) * ratio_deviation_percentage)
-            print(v_max)
-            print(v_average)
-            print(((v_max - v_average) * ratio_deviation_percentage))
         else:
             return v_average
-        print(actual_speed)
         return actual_speed
 
     def calculate_time_for_furthest_vehicle_to_light(self, ratio):
         road_height, furthest_vehicle_to_light_height , index = self.find_furthest_vehicle_position()
         furthest_vehicle_to_light_distance = (furthest_vehicle_to_light_height / road_height) * self.road_length
-        if self.bboxes[index][4] == 5:
-            vehicle_speed = self.calculate_actual_speed(self.motorcycle_speed_min, 
-                                                        self.motorcycle_speed_average, 
-                                                        self.motorcycle_speed_max, 
-                                                        ratio)
+        if self.check_front_vehicle_appearance(self.bboxes[index][3]) == True:
+            print('yes')
+            if self.bboxes[index][4] == 5:
+                vehicle_speed = self.calculate_actual_speed(self.motorcycle_speed_min, 
+                                                            self.motorcycle_speed_average, 
+                                                            self.motorcycle_speed_max, 
+                                                            ratio)
+            else:
+                vehicle_speed = self.calculate_actual_speed(self.car_speed_min, 
+                                                            self.car_speed_average, 
+                                                            self.car_speed_max, 
+                                                            ratio)
         else:
-            vehicle_speed = self.calculate_actual_speed(self.car_speed_min, 
-                                                        self.car_speed_average, 
-                                                        self.car_speed_max, 
-                                                        ratio)
-
+            print('no')
+            if self.bboxes[index][4] == 5:
+                vehicle_speed = self.motorcycle_speed_max
+            else:
+                vehicle_speed = self.car_speed_max
         time = furthest_vehicle_to_light_distance/vehicle_speed
-        cv2.rectangle(self.image, (self.bboxes[index][0], self.bboxes[index][1]), (self.bboxes[index][2], self.bboxes[index][3]), (0,0,255), 2)
+        cv2.rectangle(self.image, (self.bboxes[index][0], self.bboxes[index][1]), (self.bboxes[index][2], self.bboxes[index][3]), (255,0,0), 2)
         cv2.putText(self.image, f'Time: {int(time*3600)}s', (10,100), cv2.FONT_HERSHEY_DUPLEX, 1, color=(255,255,255), thickness=3)
     
     def road_analyse(self):
