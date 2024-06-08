@@ -157,7 +157,6 @@ class RoadAnalysis:
             if intersection_area != 0:
                 distance_between_vehicles = box[3] - furthest_vehicle_y2
                 ratio_of_distance_to_road_height = distance_between_vehicles / front_zone_height
-                print(ratio_of_distance_to_road_height)
                 if ratio_of_distance_to_road_height >= 0.5:
                     continue
                 else:
@@ -181,7 +180,6 @@ class RoadAnalysis:
         road_height, furthest_vehicle_to_light_height , index = self.find_furthest_vehicle_position()
         furthest_vehicle_to_light_distance = (furthest_vehicle_to_light_height / road_height) * self.road_length
         if self.check_front_vehicle_appearance(self.bboxes[index][3]) == True:
-            print('yes')
             if self.bboxes[index][4] == 5:
                 vehicle_speed = self.calculate_actual_speed(self.motorcycle_speed_min, 
                                                             self.motorcycle_speed_average, 
@@ -193,7 +191,6 @@ class RoadAnalysis:
                                                             self.car_speed_max, 
                                                             ratio)
         else:
-            print('no')
             if self.bboxes[index][4] == 5:
                 vehicle_speed = self.motorcycle_speed_max
             else:

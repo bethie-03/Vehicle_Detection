@@ -1,4 +1,4 @@
-MODEL_PATH = r'source/epoch40.pt'
+MODEL_PATH = r'source/best.pt'
 
 IMAGE_PATH = r"source/test.jpg"
 
