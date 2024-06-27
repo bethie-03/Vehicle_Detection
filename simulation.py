@@ -4,7 +4,7 @@ import threading
 import pygame
 import sys
 import math
-
+import subprocess
 
 #TEST SMART TRAFFIC LIGHT SYSTEM
 # RIGHT-LEFT / DOWN / LEFT-RIGHT / UP
@@ -25,9 +25,17 @@ queue_down = []
 queue_left = []
 queue_up = []
 queue = [queue_right, queue_down, queue_left, queue_up]
+
+queue_right_middle = []
+queue_down_middle = []
+queue_left_middle = []
+queue_up_middle = []
+queue_middle = [queue_right_middle, queue_down_middle, queue_left_middle, queue_up_middle]
+
 # Default values of signal timers
 # defaultGreen = {0:10, 1:15, 2:20, 3:25}
-defaultGreen = {0:10, 1:15}
+
+defaultGreen = {0:15, 1:15}
 defaultRed = 150
 defaultYellow = 5
 
@@ -100,10 +108,10 @@ class Vehicle(pygame.sprite.Sprite):
         self.speed = speeds[vehicleClass]
         self.direction_number = direction_number
         self.direction = direction
-
+        self.queueInzone = 0
+        self.queueMiddle = 0
         self.crossed = 0
         self.stopped = False  
-
         if vehicleClass != 'bike' and vehicleClass != 'bicycle':
 
             # self.x = x[direction][lane]
@@ -268,7 +276,13 @@ class Vehicle(pygame.sprite.Sprite):
             if self.direction == 'right':
                 if self.crossed == 0 and self.x + self.image.get_rect().width > stopLines[self.direction]:
                     self.crossed = 1
-                if (self.x + self.image.get_rect().width <= self.stop or self.crossed == 1 or (
+                    if self.queueInzone == 0:
+                        queue[0].pop(0)
+                        queue_middle[0].append(self.vehicleClass)
+                if self.crossed == 1 and self.x + self.image.get_rect().width > (stopLines[self.direction]+300) and self.queueMiddle == 0:
+                        queue_middle[0].pop(0)
+                        self.queueMiddle = 1
+                if (self.x + self.image.get_rect().width <= self.stop or self.crossed == 1 or ( 
                     currentGreen == 0 and currentYellow == 0)) and ((
                     self.index_1 == 0 or self.x + self.image.get_rect().width < (
                     vehicles[self.direction][self.lane_1][self.index_1 - 1].x - movingGap)) and ( 
@@ -279,6 +293,12 @@ class Vehicle(pygame.sprite.Sprite):
             elif self.direction == 'down':
                 if self.crossed == 0 and self.y + self.image.get_rect().height > stopLines[self.direction]:
                     self.crossed = 1
+                    if self.queueInzone == 0:
+                        queue[1].pop(0)
+                        queue_middle[1].append(self.vehicleClass)
+                if self.crossed == 1 and self.y + self.image.get_rect().height > (stopLines[self.direction]+300) and self.queueMiddle == 0:
+                        queue_middle[1].pop(0)
+                        self.queueMiddle = 1
                 if (self.y + self.image.get_rect().height <= self.stop or self.crossed == 1 or (
                     currentGreen == 1 and currentYellow == 0)) and ((
                     self.index_1 == 0 or self.y + self.image.get_rect().height < (
@@ -290,6 +310,12 @@ class Vehicle(pygame.sprite.Sprite):
             elif self.direction == 'left':
                 if self.crossed == 0 and self.x < stopLines[self.direction]:
                     self.crossed = 1
+                    if self.queueInzone == 0:
+                        queue[2].pop(0)
+                        queue_middle[2].append(self.vehicleClass)
+                if self.crossed == 1 and self.x < (stopLines[self.direction]-300) and self.queueMiddle == 0:
+                        queue_middle[2].pop(0)
+                        self.queueMiddle = 1
                 if (self.x >= self.stop or self.crossed == 1 or (
                         currentGreen == 0 and currentYellow == 0)) and ((
                         self.index_1 == 0 or self.x > (
@@ -303,6 +329,12 @@ class Vehicle(pygame.sprite.Sprite):
             elif self.direction == 'up':
                 if self.crossed == 0 and self.y < stopLines[self.direction]:
                     self.crossed = 1
+                    if self.queueInzone == 0:
+                        queue[3].pop(0)
+                        queue_middle[3].append(self.vehicleClass)
+                if self.crossed == 1 and self.y < (stopLines[self.direction]-300) and self.queueMiddle == 0:
+                        queue_middle[3].pop(0)
+                        self.queueMiddle = 1
                 if (self.y >= self.stop or self.crossed == 1 or (
                         currentGreen == 1 and currentYellow == 0)) and ((
                         self.index_1 == 0 or self.y > (
@@ -321,6 +353,12 @@ class Vehicle(pygame.sprite.Sprite):
             if self.direction == 'right':
                 if self.crossed == 0 and self.x + self.image.get_rect().width > stopLines[self.direction]:
                     self.crossed = 1
+                    if self.queueInzone == 0:
+                        queue[0].pop(0)
+                        queue_middle[0].append(self.vehicleClass)
+                if self.crossed == 1 and self.x + self.image.get_rect().width > (stopLines[self.direction]+300) and self.queueMiddle == 0:
+                        queue_middle[0].pop(0)
+                        self.queueMiddle = 1
                 if (self.x + self.image.get_rect().width <= self.stop or self.crossed == 1 or (
                         currentGreen == 0 and currentYellow == 0)) and (
                         self.index == 0 or self.x + self.image.get_rect().width < (
@@ -329,6 +367,12 @@ class Vehicle(pygame.sprite.Sprite):
             elif self.direction == 'down':
                 if self.crossed == 0 and self.y + self.image.get_rect().height > stopLines[self.direction]:
                     self.crossed = 1
+                    if self.queueInzone == 0:
+                        queue[1].pop(0)
+                        queue_middle[1].append(self.vehicleClass)
+                if self.crossed == 1 and self.y + self.image.get_rect().height > (stopLines[self.direction]+300) and self.queueMiddle == 0:
+                        queue_middle[1].pop(0)
+                        self.queueMiddle = 1
                 if (self.y + self.image.get_rect().height <= self.stop or self.crossed == 1 or (
                         currentGreen == 1 and currentYellow == 0)) and (
                         self.index == 0 or self.y + self.image.get_rect().height < (
@@ -337,6 +381,12 @@ class Vehicle(pygame.sprite.Sprite):
             elif self.direction == 'left':
                 if self.crossed == 0 and self.x < stopLines[self.direction]:
                     self.crossed = 1
+                    if self.queueInzone == 0:
+                        queue[2].pop(0)
+                        queue_middle[2].append(self.vehicleClass)
+                if self.crossed == 1 and self.x < (stopLines[self.direction]-300) and self.queueMiddle == 0:
+                        queue_middle[2].pop(0)
+                        self.queueMiddle = 1
                 if (self.x >= self.stop or self.crossed == 1 or (
                         currentGreen == 0 and currentYellow == 0)) and (
                         self.index == 0 or self.x > (
@@ -346,6 +396,12 @@ class Vehicle(pygame.sprite.Sprite):
             elif self.direction == 'up':
                 if self.crossed == 0 and self.y < stopLines[self.direction]:
                     self.crossed = 1
+                    if self.queueInzone == 0:
+                        queue[3].pop(0)
+                        queue_middle[3].append(self.vehicleClass)
+                if self.crossed == 1 and self.y < (stopLines[self.direction]-300) and self.queueMiddle == 0:
+                        queue_middle[3].pop(0)
+                        self.queueMiddle = 1
                 if (self.y >= self.stop or self.crossed == 1 or (
                         currentGreen == 1 and currentYellow == 0)) and (
                         self.index == 0 or self.y > (
@@ -585,25 +641,31 @@ def generateVehicles():
 
 
         print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~START PHRASE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-        # print("Total number of vehicles in each lane:")
-        # print(f"  Lane left to right: {number_vehices_total[0]} vehicles")
-        # print(f"  Lane right to left: {number_vehices_total[1]} vehicles")
-        # print(f"  Lane down to up: {number_vehices_total[2]} vehicles")
-        # print(f"  Lane up to down: {number_vehices_total[3]} vehicles")
+        print("Total number of vehicles in each lane:")
+        print(f"  Lane left to right: {number_vehices_total[0]} vehicles")
+        print(f"  Lane right to left: {number_vehices_total[1]} vehicles")
+        print(f"  Lane down to up: {number_vehices_total[2]} vehicles")
+        print(f"  Lane up to down: {number_vehices_total[3]} vehicles")
 
-        # print("Inzone number of vehicles in each lane:")
-        # print(f"  Lane left to right: {number_vehices_inZone[0]} vehicles")
-        # print(f"  Lane right to left: {number_vehices_inZone[1]} vehicles")
-        # print(f"  Lane down to up: {number_vehices_inZone[2]} vehicles")
-        # print(f"  Lane up to down: {number_vehices_inZone[3]} vehicles")
+        print("Inzone number of vehicles in each lane:")
+        print(f"  Lane left to right: {number_vehices_inZone[0]} vehicles")
+        print(f"  Lane right to left: {number_vehices_inZone[1]} vehicles")
+        print(f"  Lane down to up: {number_vehices_inZone[2]} vehicles")
+        print(f"  Lane up to down: {number_vehices_inZone[3]} vehicles")
 
-        # print("Queue of vehicles in each lane:")
-        # print(f"  Lane left to right: {queue[0]} ")
-        # print(f"  Lane right to left: {queue[1]} ")
-        # print(f"  Lane down to up: {queue[2]} ")
-        # print(f"  Lane up to down: {queue[3]} ")
+        print("Queue of vehicles in each lane:")
+        print(f"  Lane left to right: {queue[0]} ")
+        print(f"  Lane right to left: {queue[1]} ")
+        print(f"  Lane down to up: {queue[2]} ")
+        print(f"  Lane up to down: {queue[3]} ")
 
-        print(vehicles)
+        print("Queue of vehicles in middle:")
+        print(f"  Lane left to right: {queue_middle[0]} ")
+        print(f"  Lane right to left: {queue_middle[1]} ")
+        print(f"  Lane down to up: {queue_middle[2]} ")
+        print(f"  Lane up to down: {queue_middle[3]} ")
+
+        # print(vehicles)
         print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~END PHRASE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
 
