@@ -5,7 +5,17 @@ import pygame
 import sys
 import math
 import subprocess
-from light_system import cal_time
+import joblib
+import numpy as np
+from dotenv import load_dotenv, find_dotenv
+import os
+
+
+load_dotenv(find_dotenv())
+POLY_MODEL_PATH = os.getenv("POLY_MODEL_PATH")
+
+#Predict green time
+model = joblib.load(POLY_MODEL_PATH)
 
 #TEST SMART TRAFFIC LIGHT SYSTEM
 # RIGHT-LEFT / DOWN / LEFT-RIGHT / UP
@@ -36,7 +46,7 @@ queue_middle = [queue_right_middle, queue_down_middle, queue_left_middle, queue_
 # Default values of signal timers
 # defaultGreen = {0:10, 1:15, 2:20, 3:25}
 
-defaultGreen = {0:5, 1:5}
+defaultGreen = {0:15, 1:10}
 defaultRed = 150
 defaultYellow = 5
 
@@ -478,9 +488,9 @@ def initialize():
     # ts4 = TrafficSignal(defaultRed, defaultYellow, defaultGreen[3])
     # signals.append(ts4)
 
-    repeat()
+    repeat(defaultGreen)
 
-def repeat():
+def repeat(defaultGreen):
     global currentGreen, currentYellow, nextGreen
     while(signals[currentGreen].green>0):   # while the timer of current green signal is not zero
         updateValues()
@@ -497,13 +507,14 @@ def repeat():
 
      # reset all signal times of current signal to default times
     signals[currentGreen].green = defaultGreen[currentGreen]
+    print('tgian den` no chay ne',defaultGreen[currentGreen])
     signals[currentGreen].yellow = defaultYellow
     signals[currentGreen].red = defaultRed
 
     currentGreen = nextGreen # set next signal as green signal
     nextGreen = (currentGreen+1)%noOfSignals    # set next green signal
     signals[nextGreen].red = signals[currentGreen].yellow+signals[currentGreen].green    # set the red time of next to next signal as (yellow time + green time) of next signal
-    repeat()  
+    repeat(defaultGreen)  
 
 
 
@@ -717,18 +728,12 @@ def generateVehicles():
         # print(f"  Lane right to left: {queue_middle[1]} ")
         # print(f"  Lane down to up: {queue_middle[2]} ")
         # print(f"  Lane up to down: {queue_middle[3]} ")
-
         # print(vehicles)
         print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~END PHRASE~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
 
         Vehicle(lane_number, vehicletype, direction_number, directionNumbers[direction_number], angle,vehiclesize)
 
-
-        defaultGreen[0] = math.ceil((len(queue_left) + len(queue_right))/2)
-        # print("DEFAULT GREEN 0", defaultGreen[0])
-        defaultGreen[1] = math.ceil((len(queue_down) + len(queue_up))/2)
-        # print("DEFAULT GREEN 1", defaultGreen[1])
         time.sleep(0.1)
 
 def get_vehicle_inZone():    
@@ -791,7 +796,22 @@ def calculate_ratios(number_vehices_inZone):
         ratios[direction] = ratio
     
     return ratios
-
+def prepare_input_data(ratios, number_vehices_inZone, direction):
+    # Extract the ratio for the given direction
+    ratio_value = ratios[direction]
+    
+    # Extract the count of each vehicle type for the given direction
+    num_bikes = number_vehices_inZone[direction]['bike']
+    num_cars = number_vehices_inZone[direction]['car']
+    num_buses = number_vehices_inZone[direction]['bus']
+    num_trucks = number_vehices_inZone[direction]['truck']
+    
+    # Prepare the input data
+    input_data = np.array([[ratio_value, num_bikes, num_cars, num_buses, num_trucks]])
+    return input_data
+def predict_traffic_light_time(input_data):
+    predicted_time = model.predict(input_data)
+    return predicted_time[0]
 class Main:
     thread1 = threading.Thread(name="initialization",target=initialize, args=())    # initialization
     thread1.daemon = True
@@ -832,10 +852,30 @@ class Main:
             if(i==currentGreen):
                 if signals[i].green == 2 and detect_turn == 0:
                     print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`')
-                    ratios = calculate_ratios(count_and_add_to_zone(get_vehicle_inZone()))
+                    detect_vehicle = count_and_add_to_zone(get_vehicle_inZone())
+                    ratios = calculate_ratios(detect_vehicle)
                     detect_turn = 1
-                    for direction, ratio in ratios.items():
-                        print(f"Ratio for {direction}: {ratio:.4f}")
+                    print(ratios)
+                   
+                    predicted_times = []
+
+                    if currentGreen == 0:
+                        for direct in ['down','up']:
+                            prepared_data = prepare_input_data(ratios, detect_vehicle,direct)
+                            traffic_light_time = predict_traffic_light_time(prepared_data)
+                            predicted_times.append(traffic_light_time)
+                        print('time den` down up - 1',max(predicted_times))
+                        defaultGreen[1] = max(predicted_times)
+                        print(defaultGreen)
+                    elif currentGreen == 1:
+                        for direct in ['right','left']:
+                            prepared_data = prepare_input_data(ratios, detect_vehicle,direct)
+                            traffic_light_time = predict_traffic_light_time(prepared_data)
+                            predicted_times.append(traffic_light_time)
+                        print('time den` right left - 0',max(predicted_times))
+                        defaultGreen[0] = max(predicted_times)
+                        print(defaultGreen)
+
                     print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`')
                 if(currentYellow==1):
                     signals[i].signalText = signals[i].yellow
